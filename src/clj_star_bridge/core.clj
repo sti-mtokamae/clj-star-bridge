@@ -1,52 +1,97 @@
 (ns clj-star-bridge.core
-  (:require [org.httpkit.server :as server]
-            [starfederation.datastar.clojure.api :as d*]
-            [starfederation.datastar.clojure.adapter.http-kit :as hk-gen]
-            [hiccup2.core :as h]))
+  (:require [aleph.http :as http]
+            [manifold.stream :as s]
+            [cheshire.core :as json]))
 
-;; --- UIの定義 (Reactコンポーネントに相当するもの) ---
+;; グローバル状態
+(defonce counter (atom 0))
+(defonce sse-clients (atom []))
 
-(defn counter-component [count]
-  (str "<div id=\"counter-output\">"
-       "<p>現在のカウント: " count "</p>"
-       "<button data-on:click=\"@get('/increment')\">+1 する</button>"
-       "</div>"))
-
+;; HTML ページ
 (defn layout []
-  (str "<!DOCTYPE html>"
-       "<html>"
-       "<head>"
-       "<title>clj-star-bridge</title>"
-       "<script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-RC.8/bundles/datastar.js\"></script>"
-       "</head>"
-       "<body>"
-       "<h1>React SPA からの移行テスト</h1>"
-       (counter-component 0)
-       "</body>"
-       "</html>"))
+  "<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=\"UTF-8\" />
+  <title>clj-star-bridge</title>
+</head>
+<body>
+  <h1>SSE Notifications</h1>
+  <p>Count: <span id=\"count\">0</span></p>
+  <button onclick=\"fetch('/increment').then(r => r.text()).then(c => { document.getElementById('count').textContent = c; })\">+1</button>
+  
+  <div id=\"notifications\"></div>
+  
+  <script>
+    const es = new EventSource('/events');
+    es.onopen = () => {
+      console.log('✅ Connected');
+      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';
+    };
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data).message;
+      document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + msg + '</p>';
+    };
+    es.onerror = (e) => {
+      console.error('❌ Error:', e.readyState);
+    };
+  </script>
+</body>
+</html>")
 
-;; --- 状態管理とルーティング ---
+;; Webhook ハンドラー
+(defn notify-webhook [request]
+  (let [body (slurp (:body request))
+        data (json/parse-string body true)
+        message (:message data "No message")]
+    (println (str "Webhook received: " message))
+    (doseq [ch @sse-clients]
+      (try
+        (s/put! ch (str "data: " (json/generate-string {:message message}) "\n\n"))
+        (catch Exception e
+          (println (str "Error sending: " e))
+          (swap! sse-clients (fn [clients] (vec (remove #(= % ch) clients)))))))
+    {:status 200
+     :headers {"Content-Type" "application/json"}
+     :body (json/generate-string {:status "ok"})}))
 
-(defonce state (atom 0)) ; ReactのuseStateの代わり（サーバーサイドAtom）
-
-(defn app [{:keys [uri] :as request}]
-  (println (str "Request: " uri))
-  (case uri
-    "/" {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"} :body (layout)}
+;; ルーティング
+(defn base-handler [{:keys [uri request-method] :as request}]
+  (cond
+    (= uri "/") 
+    {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"} :body (layout)}
     
-    "/increment"
-    (do
-      (println "Increment requested")
-      (hk-gen/->sse-response request
-        {hk-gen/on-open
-         (fn [sse-gen]
-           (let [new-val (swap! state inc)]
-             (println (str "Counter updated to: " new-val))
-             (d*/patch-elements! sse-gen (counter-component new-val))
-             (d*/close-sse! sse-gen)))}))
-
+    (= uri "/increment")
+    (let [new (swap! counter inc)]
+      {:status 200 :headers {"Content-Type" "text/plain"} :body (str new)})
+    
+    (= uri "/events")
+    :sse-stream
+    
+    (and (= uri "/api/notify") (= request-method :post))
+    (notify-webhook request)
+    
+    :else
     {:status 404 :body "Not Found"}))
 
+;; SSE ハンドラーラッパー
+(defn handler [request]
+  (let [response (base-handler request)]
+    (if (= response :sse-stream)
+      (let [ch (s/stream)]
+        (println "SSE client connected")
+        (swap! sse-clients conj ch)
+        (s/on-closed ch (fn []
+          (println "SSE client disconnected")
+          (swap! sse-clients (fn [c] (vec (remove #{ch} c))))))
+        {:status 200
+         :headers {"Content-Type" "text/event-stream"
+                   "Cache-Control" "no-cache"
+                   "Connection" "keep-alive"}
+         :body ch})
+      response)))
+
+;; サーバー起動
 (defn -main []
-  (println "Server starting on http://localhost:8080")
-  (server/run-server #'app {:port 8080}))
+  (println "🚀 Starting on http://localhost:8080")
+  (http/start-server #'handler {:port 8080}))

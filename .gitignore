@@ -19,3 +19,6 @@ node_modules/
 
 # Logs
 *.log
+
+# Internal code (not for public repository)
+sti/
