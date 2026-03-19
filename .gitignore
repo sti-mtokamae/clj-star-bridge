@@ -1,0 +1,21 @@
+# Clojure
+target/
+classes/
+.cpcache/
+.clj-kondo/
+.lsp/
+.m2/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
