@@ -1,7 +1,8 @@
 (ns clj-star-bridge.core
   (:require [aleph.http :as http]
             [manifold.stream :as s]
-            [cheshire.core :as json]))
+            [cheshire.core :as json]
+            [hiccup.page :as page]))
 
 ;; グローバル状態
 (defonce counter (atom 0))
@@ -9,35 +10,17 @@
 
 ;; HTML ページ
 (defn layout []
-  "<!DOCTYPE html>
-<html>
-<head>
-  <meta charset=\"UTF-8\" />
-  <title>clj-star-bridge</title>
-</head>
-<body>
-  <h1>SSE Notifications</h1>
-  <p>Count: <span id=\"count\">0</span></p>
-  <button onclick=\"fetch('/increment').then(r => r.text()).then(c => { document.getElementById('count').textContent = c; })\">+1</button>
-  
-  <div id=\"notifications\"></div>
-  
-  <script>
-    const es = new EventSource('/events');
-    es.onopen = () => {
-      console.log('✅ Connected');
-      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';
-    };
-    es.onmessage = (e) => {
-      const msg = JSON.parse(e.data).message;
-      document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + msg + '</p>';
-    };
-    es.onerror = (e) => {
-      console.error('❌ Error:', e.readyState);
-    };
-  </script>
-</body>
-</html>")
+  (page/html5
+   [:head
+    [:meta {:charset "UTF-8"}]
+    [:title "clj-star-bridge"]]
+   [:body
+    [:h1 "SSE Notifications"]
+    [:p "Count: " [:span#count "0"]]
+    [:button {:onclick "fetch('/increment').then(r => r.text()).then(c => { document.getElementById('count').textContent = c; })"} "+1"]
+    [:div#notifications]
+    [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const msg = JSON.parse(e.data).message;\n      document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + msg + '</p>';\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
+
 
 ;; Webhook ハンドラー
 (defn notify-webhook [request]
