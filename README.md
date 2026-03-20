@@ -56,33 +56,31 @@ React の仮想 DOM 比較ではなく、サーバーが「どの部分を更新
 
 **焦点：アプリケーション層 - 状態管理とHTMLレンダリング**
 
-```
-┌────────────────────────────────────────┐
-│      Browser (Datastar)                │
-│  ┌──────────────────────────────────┐  │
-│  │ <div data-star="...">            │  │
-│  │   Counter: 1                     │  │
-│  │   <button>+1</button>            │  │
-│  │ </div>                           │  │
-│  └──────────────────────────────────┘  │
-└────────────┬─────────────────────────────┘
-             │
-      SSE Stream (HTML fragments)
-             │
-             ▼
-┌────────────────────────────────────────┐
-│   Clojure Server (Aleph + Hiccup)      │
-│                                        │
-│  Handler:                              │
-│   GET / → page/html5 + Datastar JS    │
-│   GET /events → SSE Stream             │
-│   POST /increment → new counter        │
-│          ↓ broadcast HTML fragment     │
-│          (Counter div only)            │
-│                                        │
-│  State: (atom {:counter 0 :...})      │
-│  No React, No JavaScript build         │
-└────────────────────────────────────────┘
+```mermaid
+graph TB
+    Browser["Browser<br/>Datastar Framework"]
+    SSE["SSE Stream<br/>HTML fragments"]
+    
+    subgraph Server["Clojure Server<br/>(Aleph + Hiccup)"]
+        Handler["Handler<br/>GET /events<br/>POST /increment"]
+        State["State<br/>atom {:counter N}"]
+        Hiccup["HTML Generation<br/>Hiccup DSL"]
+        
+        Handler -->|read/write| State
+        State -->|generate| Hiccup
+        Hiccup -->|create HTML| Handler
+    end
+    
+    Browser -->|connect| SSE
+    SSE -->|stream| Server
+    Handler -->|provide HTML| SSE
+    SSE -->|render| Browser
+    
+style Browser fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+style SSE fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+style Handler fill:#673AB7,stroke:#333,stroke-width:2px,color:#fff
+style State fill:#FF5722,stroke:#333,stroke-width:2px,color:#fff
+style Hiccup fill:#9C27B0,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 **最終目標:**
@@ -116,57 +114,49 @@ clj -M -m clj-star-bridge.core
 
 **焦点：通信層 - 複数クライアントのSSE接続管理**
 
-```
-┌─────────────────────────────────────────────┐
-│         Browser (localhost:8080)            │
-├─────────────────────────────────────────────┤
-│                                             │
-│  <script>                                   │
-│    const es = new EventSource('/events');   │
-│    es.onmessage = (e) => {                  │
-│      // Display notification                │
-│    };                                       │
-│  </script>                                  │
-│                                             │
-└────────────────┬────────────────────────────┘
-                 │
-        SSE Stream (text/event-stream)
-                 │
-                 ▼
-┌─────────────────────────────────────────────┐
-│     Aleph HTTP Server (port 8080)           │
-├─────────────────────────────────────────────┤
-│                                             │
-│  GET /events → Stream<Channel>              │
-│  POST /api/notify → Broadcast to all        │
-│  GET /increment → Counter increment         │
-│  GET / → HTML page                          │
-│                                             │
-└─────────────────────────────────────────────┘
+```mermaid
+graph TB
+    Browser["Browser<br/>EventSource('/events')"]
+    SSE["SSE Stream<br/>text/event-stream"]
+    Server["Aleph HTTP Server<br/>port 8080"]
+    
+    Browser -->|connect| SSE
+    SSE -->|stream| Server
+    Server -->|GET /events| SSE
+    Server -->|POST /api/notify| SSE
+    Server -->|GET /increment| SSE
+    
+style Browser fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+style SSE fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+style Server fill:#2196F3,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ### 通信フロー
 
 **複数クライアント接続の管理方法**
 
-```
-Browser 1: EventSource('/events')
-   ▲
-   │ SSE Stream
-   │
-Browser N: EventSource('/events')
-   ▲
-   │ SSE Stream
-   │
-──────────────────────────────────────────
-   ▼
-[Aleph Server - sse-clients (atom with streams)]
-   ▲
-   │
-   │ POST /api/notify
-   │ {"message": "..."}
-   │
-Webhook Source (e.g., external system)
+```mermaid
+graph TB
+    B1["Browser 1"]
+    B2["Browser 2"]
+    BN["Browser N"]
+    SSE["SSE Stream"]
+    Server["Aleph Server<br/>sse-clients atom"]
+    Webhook["Webhook Source<br/>POST /api/notify"]
+    
+    B1 -->|EventSource| SSE
+    B2 -->|EventSource| SSE
+    BN -->|EventSource| SSE
+    SSE -->|broadcast| Server
+    Webhook -->|notify| Server
+    Server -->|push to| SSE
+    
+style B1 fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+style B2 fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+style BN fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+style SSE fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+style Server fill:#2196F3,stroke:#333,stroke-width:2px,color:#fff
+style Webhook fill:#9C27B0,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ## 🧪 テスト
