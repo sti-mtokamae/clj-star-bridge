@@ -1,0 +1,15 @@
+.git
+.gitignore
+.clj-kondo
+.cpcache
+.lsp
+.DS_Store
+*.swp
+*.swo
+*~
+target
+classes
+.m2
+node_modules
+*.log
+sti

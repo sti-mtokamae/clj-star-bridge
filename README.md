@@ -91,11 +91,33 @@ style Hiccup fill:#9C27B0,stroke:#333,stroke-width:2px,color:#fff
 
 ## 🚀 クイックスタート
 
-### 前提
+### WSLc コンテナで起動（推奨）
+
+開発ツールは Windows 側ではなく WSLc コンテナ内に寄せます。
+
+```powershell
+cd C:\dev\clj-star-bridge
+wslc build -t clj-star-bridge-dev:latest -f containers/clj-dev/Dockerfile .
+wslc run -v C:\dev\clj-star-bridge:/workspace -p 8080:8080 -it clj-star-bridge-dev:latest bash
+```
+
+コンテナ内で：
+
+```bash
+clj -M -m clj-star-bridge.core
+```
+
+ブラウザで [http://localhost:8080](http://localhost:8080) を開くと、SSE 通知システムが表示されます。
+
+詳細は [`containers/clj-dev/BUILD.md`](containers/clj-dev/BUILD.md) を参照してください。
+
+### Windows で直接起動
+
+#### 前提
 - **Clojure** がインストール済み（`clj` コマンド）
 - **Java** 11 以上
 
-### セットアップ
+#### セットアップ
 
 ```bash
 # リポジトリをクローン
