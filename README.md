@@ -109,7 +109,7 @@ clj -M -m clj-star-bridge.core
 
 ブラウザで [http://localhost:8080](http://localhost:8080) を開くと、SSE 通知システムが表示されます。
 
-詳細は [`containers/clj-dev/BUILD.md`](containers/clj-dev/BUILD.md) を参照してください。
+Windows 上のチェックアウトはコンテナ内の `/workspace` にマウントされます。bash や Clojure REPL でインタラクティブに試す手順は [`containers/clj-dev/BUILD.md`](containers/clj-dev/BUILD.md) を参照してください。
 
 ### Windows で直接起動
 

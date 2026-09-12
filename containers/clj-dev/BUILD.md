@@ -17,13 +17,30 @@ Check the image:
 wslc image list
 ```
 
-## Shell
+## Interactive Shell
 
 ```powershell
-wslc run -v C:\dev\clj-star-bridge:/workspace -p 8080:8080 -it clj-star-bridge-dev:latest bash
+wslc run --name clj-star-bridge-dev `
+  -v C:\dev\clj-star-bridge:/workspace `
+  -p 8080:8080 `
+  -it clj-star-bridge-dev:latest bash
 ```
 
-Inside the container:
+This mounts the Windows checkout at `/workspace`. Edits made in Windows, VS Code, or Codex are visible inside the container immediately.
+
+Inside the container shell:
+
+```bash
+pwd
+ls
+clj --version
+node --version
+npm --version
+```
+
+## Run the App
+
+From the container shell:
 
 ```bash
 clj -M -m clj-star-bridge.core
@@ -33,6 +50,46 @@ Open:
 
 ```text
 http://localhost:8080/
+```
+
+The server keeps this shell busy. Keep this terminal as the server terminal.
+
+From another PowerShell terminal, attach a second interactive shell to the same running container:
+
+```powershell
+wslc list
+wslc exec -it clj-star-bridge-dev bash
+```
+
+Use the second shell for `clj`, `curl`, file inspection, or other experiments while the server stays up. Stop the server with `Ctrl+C` in the server terminal.
+
+## REPL Workflow
+
+For interactive experiments, start a plain Clojure REPL inside the container:
+
+```bash
+clj
+```
+
+Then load the app namespace and start the server from the REPL:
+
+```clojure
+(require '[clj-star-bridge.core :as app])
+(def server (app/-main))
+```
+
+After editing source files from Windows or VS Code, reload the namespace and restart the server:
+
+```clojure
+(.close server)
+(require '[clj-star-bridge.core :as app] :reload)
+(def server (app/-main))
+```
+
+Exit the REPL with:
+
+```clojure
+(System/exit 0)
 ```
 
 ## Smoke Checks
