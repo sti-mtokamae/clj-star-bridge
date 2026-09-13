@@ -108,6 +108,13 @@ For the SSE stream:
 curl.exe -N http://localhost:8080/events
 ```
 
+For the Datastar increment response:
+
+```powershell
+curl.exe -N http://localhost:8080/increment `
+  -H "Datastar-Request: true"
+```
+
 ## Verified
 
 Verified on 2026-09-11:

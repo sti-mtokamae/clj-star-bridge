@@ -4,17 +4,24 @@
             [manifold.deferred :as d]
             [manifold.stream :as s]
             [cheshire.core :as json]
+            [hiccup2.core :as h]
             [hiccup.page :as page]))
 
 ;; グローバル状態
 (defonce counter (atom 0))
 (defonce sse-clients (atom #{}))
 
+(def datastar-script-url
+  "https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js")
+
 (defn sse-data-lines [data]
   (let [body (if (string? data)
                data
                (json/generate-string data))]
     (map #(str "data: " %) (str/split-lines body))))
+
+(defn sse-field-lines [field data]
+  (map #(str field " " %) (str/split-lines data)))
 
 (defn sse-frame
   "Build a standards-compliant SSE frame from optional metadata and data."
@@ -26,6 +33,23 @@
                  retry (conj (str "retry: " retry)))]
     (str (str/join "\n" (concat fields (sse-data-lines data)))
          "\n\n")))
+
+(defn datastar-patch-elements [fragment]
+  (sse-frame {:event "datastar-patch-elements"
+              :data (str/join "\n" (sse-field-lines "elements" fragment))}))
+
+(defn datastar-response [body]
+  {:status 200
+   :headers {"Content-Type" "text/event-stream"
+             "Cache-Control" "no-cache"
+             "X-Accel-Buffering" "no"}
+   :body body})
+
+(defn datastar-request? [request]
+  (= "true" (get-in request [:headers "datastar-request"])))
+
+(defn count-fragment [n]
+  (str (h/html [:span#count n])))
 
 (defn remove-client! [ch]
   (swap! sse-clients disj ch))
@@ -53,11 +77,13 @@
   (page/html5
    [:head
     [:meta {:charset "UTF-8"}]
-    [:title "clj-star-bridge"]]
+    [:title "clj-star-bridge"]
+    [:script {:type "module"
+              :src datastar-script-url}]]
    [:body
     [:h1 "SSE Notifications"]
     [:p "Count: " [:span#count "0"]]
-    [:button {:onclick "fetch('/increment').then(r => r.text()).then(c => { document.getElementById('count').textContent = c; })"} "+1"]
+    [:button {:data-on:click "@get('/increment')"} "+1"]
     [:div#notifications]
     [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 
@@ -85,7 +111,9 @@
       (broadcast! {:type "count"
                    :count new
                    :message (str "Count updated to " new)})
-      {:status 200 :headers {"Content-Type" "text/plain"} :body (str new)})
+      (if (datastar-request? request)
+        (datastar-response (datastar-patch-elements (count-fragment new)))
+        {:status 200 :headers {"Content-Type" "text/plain"} :body (str new)}))
     
     (= uri "/events")
     :sse-stream
