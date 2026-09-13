@@ -8,6 +8,23 @@
 (defonce counter (atom 0))
 (defonce sse-clients (atom []))
 
+(defn sse-message [payload]
+  (str "data: " (json/generate-string payload) "\n\n"))
+
+(defn remove-client! [ch]
+  (swap! sse-clients (fn [clients] (vec (remove #{ch} clients)))))
+
+(defn send-sse! [ch payload]
+  (try
+    (s/put! ch (sse-message payload))
+    (catch Exception e
+      (println (str "Error sending SSE: " e))
+      (remove-client! ch))))
+
+(defn broadcast! [payload]
+  (doseq [ch @sse-clients]
+    (send-sse! ch payload)))
+
 ;; HTML ページ
 (defn layout []
   (page/html5
@@ -19,7 +36,7 @@
     [:p "Count: " [:span#count "0"]]
     [:button {:onclick "fetch('/increment').then(r => r.text()).then(c => { document.getElementById('count').textContent = c; })"} "+1"]
     [:div#notifications]
-    [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const msg = JSON.parse(e.data).message;\n      document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + msg + '</p>';\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
+    [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 
 
 ;; Webhook ハンドラー
@@ -28,12 +45,8 @@
         data (json/parse-string body true)
         message (:message data "No message")]
     (println (str "Webhook received: " message))
-    (doseq [ch @sse-clients]
-      (try
-        (s/put! ch (str "data: " (json/generate-string {:message message}) "\n\n"))
-        (catch Exception e
-          (println (str "Error sending: " e))
-          (swap! sse-clients (fn [clients] (vec (remove #(= % ch) clients)))))))
+    (broadcast! {:type "notification"
+                 :message message})
     {:status 200
      :headers {"Content-Type" "application/json"}
      :body (json/generate-string {:status "ok"})}))
@@ -46,6 +59,9 @@
     
     (= uri "/increment")
     (let [new (swap! counter inc)]
+      (broadcast! {:type "count"
+                   :count new
+                   :message (str "Count updated to " new)})
       {:status 200 :headers {"Content-Type" "text/plain"} :body (str new)})
     
     (= uri "/events")
@@ -64,9 +80,12 @@
       (let [ch (s/stream)]
         (println "SSE client connected")
         (swap! sse-clients conj ch)
+        (send-sse! ch {:type "connected"
+                       :message "SSE connected"
+                       :count @counter})
         (s/on-closed ch (fn []
           (println "SSE client disconnected")
-          (swap! sse-clients (fn [c] (vec (remove #{ch} c))))))
+          (remove-client! ch)))
         {:status 200
          :headers {"Content-Type" "text/event-stream"
                    "Cache-Control" "no-cache"
