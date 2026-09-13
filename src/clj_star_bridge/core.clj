@@ -11,6 +11,11 @@
 (defonce counter (atom 0))
 (defonce sse-clients (atom #{}))
 
+(def sse-headers
+  {"Content-Type" "text/event-stream"
+   "Cache-Control" "no-cache"
+   "X-Accel-Buffering" "no"})
+
 (def datastar-script-url
   "https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js")
 
@@ -38,18 +43,29 @@
   (sse-frame {:event "datastar-patch-elements"
               :data (str/join "\n" (sse-field-lines "elements" fragment))}))
 
-(defn datastar-response [body]
+(defn sse-response [body]
   {:status 200
-   :headers {"Content-Type" "text/event-stream"
-             "Cache-Control" "no-cache"
-             "X-Accel-Buffering" "no"}
+   :headers sse-headers
    :body body})
+
+(defn datastar-response [events]
+  (sse-response (apply str events)))
 
 (defn datastar-request? [request]
   (= "true" (get-in request [:headers "datastar-request"])))
 
 (defn count-fragment [n]
   (str (h/html [:span#count n])))
+
+(defn count-patch-event [n]
+  (datastar-patch-elements (count-fragment n)))
+
+(defn count-response [request n]
+  (if (datastar-request? request)
+    (datastar-response [(count-patch-event n)])
+    {:status 200
+     :headers {"Content-Type" "text/plain"}
+     :body (str n)}))
 
 (defn remove-client! [ch]
   (swap! sse-clients disj ch))
@@ -111,9 +127,7 @@
       (broadcast! {:type "count"
                    :count new
                    :message (str "Count updated to " new)})
-      (if (datastar-request? request)
-        (datastar-response (datastar-patch-elements (count-fragment new)))
-        {:status 200 :headers {"Content-Type" "text/plain"} :body (str new)}))
+      (count-response request new))
     
     (= uri "/events")
     :sse-stream
@@ -138,10 +152,7 @@
           (println "SSE client disconnected")
           (remove-client! ch)))
         {:status 200
-         :headers {"Content-Type" "text/event-stream"
-                   "Cache-Control" "no-cache"
-                   "X-Accel-Buffering" "no"
-                   "Connection" "keep-alive"}
+         :headers (assoc sse-headers "Connection" "keep-alive")
          :body ch})
       response)))
 
