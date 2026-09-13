@@ -1,22 +1,45 @@
 (ns clj-star-bridge.core
   (:require [aleph.http :as http]
+            [clojure.string :as str]
+            [manifold.deferred :as d]
             [manifold.stream :as s]
             [cheshire.core :as json]
             [hiccup.page :as page]))
 
 ;; グローバル状態
 (defonce counter (atom 0))
-(defonce sse-clients (atom []))
+(defonce sse-clients (atom #{}))
 
-(defn sse-message [payload]
-  (str "data: " (json/generate-string payload) "\n\n"))
+(defn sse-data-lines [data]
+  (let [body (if (string? data)
+               data
+               (json/generate-string data))]
+    (map #(str "data: " %) (str/split-lines body))))
+
+(defn sse-frame
+  "Build a standards-compliant SSE frame from optional metadata and data."
+  [{:keys [event id retry data] :as message}]
+  (let [data (if (contains? message :data) data message)
+        fields (cond-> []
+                 id (conj (str "id: " id))
+                 event (conj (str "event: " event))
+                 retry (conj (str "retry: " retry)))]
+    (str (str/join "\n" (concat fields (sse-data-lines data)))
+         "\n\n")))
 
 (defn remove-client! [ch]
-  (swap! sse-clients (fn [clients] (vec (remove #{ch} clients)))))
+  (swap! sse-clients disj ch))
 
 (defn send-sse! [ch payload]
   (try
-    (s/put! ch (sse-message payload))
+    (d/on-realized
+     (s/put! ch (sse-frame {:data payload}))
+     (fn [accepted?]
+       (when-not accepted?
+         (remove-client! ch)))
+     (fn [e]
+       (println (str "Error sending SSE: " e))
+       (remove-client! ch)))
     (catch Exception e
       (println (str "Error sending SSE: " e))
       (remove-client! ch))))
@@ -89,6 +112,7 @@
         {:status 200
          :headers {"Content-Type" "text/event-stream"
                    "Cache-Control" "no-cache"
+                   "X-Accel-Buffering" "no"
                    "Connection" "keep-alive"}
          :body ch})
       response)))
