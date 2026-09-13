@@ -5,7 +5,9 @@
             [manifold.stream :as s]
             [cheshire.core :as json]
             [hiccup2.core :as h]
-            [hiccup.page :as page]))
+            [hiccup.page :as page]
+            [starfederation.datastar.clojure.api :as d*]
+            [starfederation.datastar.clojure.adapter.aleph :as datastar-aleph]))
 
 ;; グローバル状態
 (defonce counter (atom 0))
@@ -25,9 +27,6 @@
                (json/generate-string data))]
     (map #(str "data: " %) (str/split-lines body))))
 
-(defn sse-field-lines [field data]
-  (map #(str field " " %) (str/split-lines data)))
-
 (defn sse-frame
   "Build a standards-compliant SSE frame from optional metadata and data."
   [{:keys [event id retry data] :as message}]
@@ -39,30 +38,22 @@
     (str (str/join "\n" (concat fields (sse-data-lines data)))
          "\n\n")))
 
-(defn datastar-patch-elements [fragment]
-  (sse-frame {:event "datastar-patch-elements"
-              :data (str/join "\n" (sse-field-lines "elements" fragment))}))
-
 (defn sse-response [body]
   {:status 200
    :headers sse-headers
    :body body})
 
-(defn datastar-response [events]
-  (sse-response (apply str events)))
-
-(defn datastar-request? [request]
-  (= "true" (get-in request [:headers "datastar-request"])))
-
 (defn count-fragment [n]
   (str (h/html [:span#count n])))
 
-(defn count-patch-event [n]
-  (datastar-patch-elements (count-fragment n)))
-
 (defn count-response [request n]
-  (if (datastar-request? request)
-    (datastar-response [(count-patch-event n)])
+  (if (d*/datastar-request? request)
+    (datastar-aleph/->sse-response
+     request
+     {datastar-aleph/on-open
+      (fn [sse]
+        (d*/with-open-sse sse
+          (d*/patch-elements! sse (count-fragment n))))})
     {:status 200
      :headers {"Content-Type" "text/plain"}
      :body (str n)}))
