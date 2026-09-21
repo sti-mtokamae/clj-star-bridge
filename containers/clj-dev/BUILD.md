@@ -125,8 +125,13 @@ Verified on 2026-09-11:
 - `http://localhost:8080/` renders in the Codex web preview.
 - `POST /api/notify` broadcasts a message to the preview over SSE.
 
+Additional verification on 2026-09-20:
+
+- The Datastar increment response patches the server-rendered `#counter-panel` fragment.
+- The replacement panel keeps its `+1` interaction and supports consecutive updates.
+
 ## Notes
 
 - The repository is mounted at `/workspace`.
 - Java, Clojure CLI, Node, and npm are provided by the Nix dev shell.
-- Node/npm are included for future Datastar experiments, but the current Phase 1 app does not require a JavaScript build.
+- Datastar is loaded from a CDN, so the current app does not require a JavaScript build. Node/npm remain available for future experiments.

@@ -16,12 +16,22 @@ Plain notification stream:
   existing Aleph/Manifold helper
 ```
 
+## SSE 実装の役割分担
+
+このプロジェクトでは、手書き SSE と Datastar SDK の SSE をどちらか一方に統一しない。
+
+- `/events` は、ブラウザの `EventSource` に JSON を流す汎用通知ストリームとして維持する。
+- `/events` の実装は、SSE frame、`data:` 行、空行終端、クライアント接続管理、切断時 cleanup が見える低レベルな参考実装でもある。
+- Datastar action response は、`patch-elements!` や将来の `patch-signals!` など、Datastar プロトコル固有のイベント生成を SDK に任せる。
+- Aleph は Datastar 専用の通信方式ではなく、手書き SSE と Datastar SDK の両方を流す HTTP/streaming 基盤として採用する。
+
 ## 採用する価値がある理由
 
 - `dev.data-star.clojure/aleph` は現在の Aleph サーバー構成でロードできる。
 - `starfederation.datastar.clojure.adapter.aleph/->sse-response` で Datastar 用 SSE レスポンスを作れる。
 - `starfederation.datastar.clojure.api/patch-elements!` により、手書きしていた `datastar-patch-elements` フレーム生成を置き換えられる。
-- `+1` ボタンから `data-on:click="@get('/increment')"` を実行し、SDK 経由の `patch-elements!` で `#count` が更新されることをブラウザで確認済み。
+- `+1` ボタンから `data-on:click="@get('/increment')"` を実行し、SDK 経由の `patch-elements!` で、Hiccup が生成した `#counter-panel` 全体を差し替えられることをブラウザで確認済み。
+- 差し替え後の `+1` ボタンから再度リクエストでき、サーバー生成 UI fragment の連続更新も確認済み。
 - 既存の `/events` による通知ストリームも壊れていない。
 
 ## 注意点
