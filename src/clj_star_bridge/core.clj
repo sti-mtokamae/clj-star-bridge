@@ -43,17 +43,22 @@
    :headers sse-headers
    :body body})
 
-(defn count-fragment [n]
-  (str (h/html [:span#count n])))
+(defn counter-panel [n]
+  [:section#counter-panel
+   [:p "Count: " [:span#count n]]
+   [:button {:data-on:click "@get('/increment')"} "+1"]])
 
-(defn count-response [request n]
+(defn counter-panel-fragment [n]
+  (str (h/html (counter-panel n))))
+
+(defn counter-panel-response [request n]
   (if (d*/datastar-request? request)
     (datastar-aleph/->sse-response
      request
      {datastar-aleph/on-open
       (fn [sse]
         (d*/with-open-sse sse
-          (d*/patch-elements! sse (count-fragment n))))})
+          (d*/patch-elements! sse (counter-panel-fragment n))))})
     {:status 200
      :headers {"Content-Type" "text/plain"}
      :body (str n)}))
@@ -89,8 +94,7 @@
               :src datastar-script-url}]]
    [:body
     [:h1 "SSE Notifications"]
-    [:p "Count: " [:span#count "0"]]
-    [:button {:data-on:click "@get('/increment')"} "+1"]
+    (counter-panel @counter)
     [:div#notifications]
     [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 
@@ -111,14 +115,16 @@
 (defn base-handler [{:keys [uri request-method] :as request}]
   (cond
     (= uri "/") 
-    {:status 200 :headers {"Content-Type" "text/html; charset=utf-8"} :body (layout)}
+    {:status 200
+     :headers {"Content-Type" "text/html; charset=utf-8"}
+     :body (layout)}
     
     (= uri "/increment")
     (let [new (swap! counter inc)]
       (broadcast! {:type "count"
                    :count new
                    :message (str "Count updated to " new)})
-      (count-response request new))
+      (counter-panel-response request new))
     
     (= uri "/events")
     :sse-stream

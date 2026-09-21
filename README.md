@@ -35,17 +35,27 @@ React SPA から **Datastar + Clojure** へのアーキテクチャ移行を段�
 - **Cheshire**: JSON パース・生成
 - **Clojure 1.12.0**: コア言語
 
-### Phase 2: Datastar Components (計画中)
+### Phase 2: Datastar Components (進行中)
 
 **Datastar とは？**
 軽量フロントエンドフレームワーク（11KB）。サーバーからの SSE ストリームを通じて、HTML フラグメントを受け取り、**部分的に DOM を更新** するアプローチ。
 React の仮想 DOM 比較ではなく、サーバーが「どの部分を更新するか」を明示的に指定します。
 
-**実装予定:**
-- [ ] Datastar SDK 統合（`@data-star` スクリプト）
-- [ ] Hiccup で生成した HTML フラグメントを SSE で送信
-- [ ] OOB (Out of Band) スワップで特定要素のみ更新
-- [ ] リアクティブな UI コンポーネント（セレクタベース更新）
+**実装状況:**
+- [x] Datastar スクリプトと Clojure/Aleph SDK の統合
+- [x] Hiccup で生成した HTML フラグメントを SSE で送信
+- [x] サーバー生成した `#counter-panel` 全体の差し替え
+- [ ] 1 レスポンスで複数の UI fragment を更新
+- [ ] signals を使ったクライアント状態との連携
+
+**SSE 実装の位置づけ:**
+
+このプロジェクトでは、意図的に 2 種類の SSE 実装を併存させています。
+
+- `/events`: Aleph/Manifold で手書きした汎用 EventSource 向け SSE。SSE の原理が見える参考実装として残す。
+- Datastar actions（例: `/increment`）: `dev.data-star.clojure/aleph` と Datastar SDK を使い、DOM patch や signal patch などの Datastar プロトコルを任せる。
+
+Aleph は Datastar 専用ではなく、SSE/streaming を扱うための Clojure HTTP サーバー基盤として採用しています。Datastar 固有のイベント生成は SDK に寄せ、手書き SSE は汎用通知ストリームと学習用の低レベル実装として扱います。
 
 ### Phase 3: React Component Gradual Migration (計画中)
 
