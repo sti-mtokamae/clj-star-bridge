@@ -45,7 +45,7 @@ React の仮想 DOM 比較ではなく、サーバーが「どの部分を更新
 - [x] Datastar スクリプトと Clojure/Aleph SDK の統合
 - [x] Hiccup で生成した HTML フラグメントを SSE で送信
 - [x] サーバー生成した `#counter-panel` 全体の差し替え
-- [ ] 1 レスポンスで複数の UI fragment を更新
+- [x] 1 レスポンスで複数の UI fragment を更新
 - [ ] signals を使ったクライアント状態との連携
 
 **SSE 実装の位置づけ:**

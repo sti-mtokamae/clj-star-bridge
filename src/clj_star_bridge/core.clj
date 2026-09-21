@@ -48,17 +48,24 @@
    [:p "Count: " [:span#count n]]
    [:button {:data-on:click "@get('/increment')"} "+1"]])
 
+(defn activity-status [message]
+  [:p#activity-status message])
+
 (defn counter-panel-fragment [n]
   (str (h/html (counter-panel n))))
 
-(defn counter-panel-response [request n]
+(defn activity-status-fragment [message]
+  (str (h/html (activity-status message))))
+
+(defn increment-response [request n message]
   (if (d*/datastar-request? request)
     (datastar-aleph/->sse-response
      request
      {datastar-aleph/on-open
       (fn [sse]
         (d*/with-open-sse sse
-          (d*/patch-elements! sse (counter-panel-fragment n))))})
+          (d*/patch-elements! sse (counter-panel-fragment n))
+          (d*/patch-elements! sse (activity-status-fragment message))))})
     {:status 200
      :headers {"Content-Type" "text/plain"}
      :body (str n)}))
@@ -95,6 +102,7 @@
    [:body
     [:h1 "SSE Notifications"]
     (counter-panel @counter)
+    (activity-status "Ready")
     [:div#notifications]
     [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 
@@ -120,11 +128,12 @@
      :body (layout)}
     
     (= uri "/increment")
-    (let [new (swap! counter inc)]
+    (let [new (swap! counter inc)
+          message (str "Count updated to " new)]
       (broadcast! {:type "count"
                    :count new
-                   :message (str "Count updated to " new)})
-      (counter-panel-response request new))
+                   :message message})
+      (increment-response request new message))
     
     (= uri "/events")
     :sse-stream

@@ -61,7 +61,13 @@ wslc list
 wslc exec -it clj-star-bridge-dev bash
 ```
 
-Use the second shell for `clj`, `curl`, file inspection, or other experiments while the server stays up. Stop the server with `Ctrl+C` in the server terminal.
+When entering with `wslc exec`, start the Nix dev shell before using `clj`:
+
+```bash
+nix develop /opt/clj-star-bridge-dev --command bash -i
+```
+
+Use the second dev shell for `clj`, `curl`, file inspection, or other experiments while the server stays up. Stop the server with `Ctrl+C` in the server terminal.
 
 ## REPL Workflow
 
@@ -129,6 +135,14 @@ Additional verification on 2026-09-20:
 
 - The Datastar increment response patches the server-rendered `#counter-panel` fragment.
 - The replacement panel keeps its `+1` interaction and supports consecutive updates.
+
+Additional verification on 2026-09-22:
+
+- After `wslc start` and `wslc exec`, entering `nix develop /opt/clj-star-bridge-dev --command bash -i` restores the Clojure dev tools.
+- `clj -M -m clj-star-bridge.core` starts the app from `/workspace`.
+- The updated web page runs on `http://localhost:8080/` and accepts SSE clients.
+- A Datastar increment response sends multiple `patch-elements!` events in one response for `#counter-panel` and `#activity-status`.
+- Browser clicks update both `Count: N` and `Count updated to N`, while the `/events` JSON SSE notification log continues receiving count updates.
 
 ## Notes
 

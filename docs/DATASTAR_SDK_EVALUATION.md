@@ -32,6 +32,7 @@ Plain notification stream:
 - `starfederation.datastar.clojure.api/patch-elements!` により、手書きしていた `datastar-patch-elements` フレーム生成を置き換えられる。
 - `+1` ボタンから `data-on:click="@get('/increment')"` を実行し、SDK 経由の `patch-elements!` で、Hiccup が生成した `#counter-panel` 全体を差し替えられることをブラウザで確認済み。
 - 差し替え後の `+1` ボタンから再度リクエストでき、サーバー生成 UI fragment の連続更新も確認済み。
+- 1 つの Datastar レスポンスで `patch-elements!` を複数回実行し、`#counter-panel` と `#activity-status` を同じレスポンス内で順に更新できる。
 - 既存の `/events` による通知ストリームも壊れていない。
 
 ## 注意点
@@ -46,7 +47,6 @@ Plain notification stream:
 - `patch-signals!`
 - `remove-element!`
 - `execute-script!`
-- 複数の Datastar event を 1 つのレスポンスで流す構成
 - 長時間接続する Datastar SSE stream を SDK adapter に任せる設計
 - `1.0.0-RC10` とより新しい RC 版の差分
 - SDK 追加による依存関係やバージョン影響
