@@ -51,11 +51,31 @@
 (defn activity-status [message]
   [:p#activity-status message])
 
+(defn greeting-message [name]
+  (if (str/blank? name)
+    "Enter your name"
+    (str "Hello, " name "!")))
+
+(defn greeting [name]
+  [:p#greeting (greeting-message name)])
+
+(defn signal-demo []
+  [:section#signal-demo
+   [:h2 "Signals"]
+   [:label {:for "name"} "Name: "]
+   [:input#name {:type "text"
+                 :data-bind "name"}]
+   [:button {:data-on:click "@post('/greet')"} "Greet"]
+   (greeting "")])
+
 (defn counter-panel-fragment [n]
   (str (h/html (counter-panel n))))
 
 (defn activity-status-fragment [message]
   (str (h/html (activity-status message))))
+
+(defn greeting-fragment [name]
+  (str (h/html (greeting name))))
 
 (defn increment-response [request n message]
   (if (d*/datastar-request? request)
@@ -69,6 +89,29 @@
     {:status 200
      :headers {"Content-Type" "text/plain"}
      :body (str n)}))
+
+(defn request-signals [request]
+  (if-let [body (d*/get-signals request)]
+    (json/parse-string (slurp body) true)
+    {}))
+
+(defn normalize-name [value]
+  (if (string? value)
+    (str/trim value)
+    ""))
+
+(defn greeting-response [request name]
+  (if (d*/datastar-request? request)
+    (datastar-aleph/->sse-response
+     request
+     {datastar-aleph/on-open
+      (fn [sse]
+        (d*/with-open-sse sse
+          (d*/patch-elements! sse (greeting-fragment name))
+          (d*/patch-signals! sse (json/generate-string {:name name}))))})
+    {:status 200
+     :headers {"Content-Type" "text/plain; charset=utf-8"}
+     :body (greeting-message name)}))
 
 (defn remove-client! [ch]
   (swap! sse-clients disj ch))
@@ -103,6 +146,7 @@
     [:h1 "SSE Notifications"]
     (counter-panel @counter)
     (activity-status "Ready")
+    (signal-demo)
     [:div#notifications]
     [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 
@@ -140,6 +184,11 @@
     
     (and (= uri "/api/notify") (= request-method :post))
     (notify-webhook request)
+
+    (and (= uri "/greet") (= request-method :post))
+    (let [signals (request-signals request)
+          name (normalize-name (:name signals))]
+      (greeting-response request name))
     
     :else
     {:status 404 :body "Not Found"}))

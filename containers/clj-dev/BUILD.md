@@ -121,6 +121,15 @@ curl.exe -N http://localhost:8080/increment `
   -H "Datastar-Request: true"
 ```
 
+For the Datastar signals response:
+
+```powershell
+curl.exe -N -X POST http://localhost:8080/greet `
+  -H "Datastar-Request: true" `
+  -H "Content-Type: application/json" `
+  --data-raw '{"name":"  Ada  "}'
+```
+
 ## Verified
 
 Verified on 2026-09-11:
@@ -143,6 +152,8 @@ Additional verification on 2026-09-22:
 - The updated web page runs on `http://localhost:8080/` and accepts SSE clients.
 - A Datastar increment response sends multiple `patch-elements!` events in one response for `#counter-panel` and `#activity-status`.
 - Browser clicks update both `Count: N` and `Count updated to N`, while the `/events` JSON SSE notification log continues receiving count updates.
+- A Datastar POST sends the bound `name` signal to `/greet`; the server trims it and returns both a greeting element patch and a normalized signal patch.
+- Entering `  Ada  ` updates the input to `Ada` and the greeting to `Hello, Ada!` in the browser.
 
 ## Notes
 

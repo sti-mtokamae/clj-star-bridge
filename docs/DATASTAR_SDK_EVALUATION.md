@@ -33,6 +33,8 @@ Plain notification stream:
 - `+1` ボタンから `data-on:click="@get('/increment')"` を実行し、SDK 経由の `patch-elements!` で、Hiccup が生成した `#counter-panel` 全体を差し替えられることをブラウザで確認済み。
 - 差し替え後の `+1` ボタンから再度リクエストでき、サーバー生成 UI fragment の連続更新も確認済み。
 - 1 つの Datastar レスポンスで `patch-elements!` を複数回実行し、`#counter-panel` と `#activity-status` を同じレスポンス内で順に更新できる。
+- `data-bind="name"` と `@post('/greet')` で送られた signal を `get-signals` で読み取り、サーバーで正規化した値を `patch-elements!` と `patch-signals!` でブラウザへ返せる。
+- 前後に空白を含む名前を送信すると、挨拶 fragment と入力欄の signal が正規化後の値へ更新されることをブラウザで確認済み。
 - 既存の `/events` による通知ストリームも壊れていない。
 
 ## 注意点
@@ -44,12 +46,17 @@ Plain notification stream:
 
 ## まだ評価していないこと
 
-- `patch-signals!`
 - `remove-element!`
 - `execute-script!`
-- 長時間接続する Datastar SSE stream を SDK adapter に任せる設計
 - `1.0.0-RC10` とより新しい RC 版の差分
 - SDK 追加による依存関係やバージョン影響
+
+## Phase 3 で評価すること
+
+- 長時間接続する Datastar SSE stream を SDK adapter に任せる設計
+  - 既存の `/events` は、手書き JSON SSE の参考実装として維持する。
+  - Datastar SDK 版は別エンドポイントとして新設し、`/events` の置き換えではなく比較対象として扱う。
+  - 候補機能は、通知ビュー、ライブステータス、サーバー時刻、または処理進捗のような継続更新UIとする。
 
 ## 現時点の判断
 

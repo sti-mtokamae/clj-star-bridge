@@ -35,7 +35,7 @@ React SPA から **Datastar + Clojure** へのアーキテクチャ移行を段�
 - **Cheshire**: JSON パース・生成
 - **Clojure 1.12.0**: コア言語
 
-### Phase 2: Datastar Components (進行中)
+### Phase 2: Datastar Components ✅ COMPLETE
 
 **Datastar とは？**
 軽量フロントエンドフレームワーク（11KB）。サーバーからの SSE ストリームを通じて、HTML フラグメントを受け取り、**部分的に DOM を更新** するアプローチ。
@@ -46,7 +46,7 @@ React の仮想 DOM 比較ではなく、サーバーが「どの部分を更新
 - [x] Hiccup で生成した HTML フラグメントを SSE で送信
 - [x] サーバー生成した `#counter-panel` 全体の差し替え
 - [x] 1 レスポンスで複数の UI fragment を更新
-- [ ] signals を使ったクライアント状態との連携
+- [x] signals を使ったクライアント状態との連携
 
 **SSE 実装の位置づけ:**
 
@@ -59,6 +59,10 @@ Aleph は Datastar 専用ではなく、SSE/streaming を扱うための Clojure
 
 ### Phase 3: React Component Gradual Migration (計画中)
 
+- [ ] Datastar SDK による長時間 SSE stream の新規評価
+  - 既存の `/events` は手書き JSON SSE の参考実装として維持する
+  - Datastar SDK を使う別エンドポイントで、長時間接続の DOM patch / signal patch を検証する
+  - 機能案: `/events` に類似した通知ビュー、ライブステータス、またはサーバー時刻/進捗表示
 - [ ] 既存 React SPA の段階的置き換え
 - [ ] 状態管理の Clojure 移行
 
