@@ -130,6 +130,13 @@ curl.exe -N -X POST http://localhost:8080/greet `
   --data-raw '{"name":"  Ada  "}'
 ```
 
+For the long-lived Datastar live status stream:
+
+```powershell
+curl.exe -N http://localhost:8080/live-status `
+  -H "Datastar-Request: true"
+```
+
 ## Verified
 
 Verified on 2026-09-11:
@@ -154,6 +161,14 @@ Additional verification on 2026-09-22:
 - Browser clicks update both `Count: N` and `Count updated to N`, while the `/events` JSON SSE notification log continues receiving count updates.
 - A Datastar POST sends the bound `name` signal to `/greet`; the server trims it and returns both a greeting element patch and a normalized signal patch.
 - Entering `  Ada  ` updates the input to `Ada` and the greeting to `Hello, Ada!` in the browser.
+
+Additional verification on 2026-09-23:
+
+- `/live-status` keeps a Datastar SDK SSE response open and sends repeated `patch-elements!` events for `#live-status`.
+- The live status stream updates the server timestamp and update count once per second.
+- The browser automatically opens the stream through `data-init` and continuously updates the `Live Status` section.
+- Closing the curl client invokes the adapter's `on-close` callback and stops the virtual-thread worker.
+- The existing Datastar `/increment` response still sends both `#counter-panel` and `#activity-status` patches.
 
 ## Notes
 

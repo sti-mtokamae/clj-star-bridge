@@ -68,6 +68,16 @@
    [:button {:data-on:click "@post('/greet')"} "Greet"]
    (greeting "")])
 
+(defn live-status [update-count server-time]
+  [:div#live-status
+   [:p "Server time: " [:time server-time]]
+   [:p "Updates: " [:span#live-update-count update-count]]])
+
+(defn live-status-stream []
+  [:section#live-status-stream {:data-init "@get('/live-status')"}
+   [:h2 "Live Status"]
+   (live-status 0 "Connecting...")])
+
 (defn counter-panel-fragment [n]
   (str (h/html (counter-panel n))))
 
@@ -76,6 +86,9 @@
 
 (defn greeting-fragment [name]
   (str (h/html (greeting name))))
+
+(defn live-status-fragment [update-count]
+  (str (h/html (live-status update-count (str (java.time.Instant/now))))))
 
 (defn increment-response [request n message]
   (if (d*/datastar-request? request)
@@ -113,6 +126,34 @@
      :headers {"Content-Type" "text/plain; charset=utf-8"}
      :body (greeting-message name)}))
 
+(defn start-live-status! [sse]
+  (Thread/startVirtualThread
+   (fn []
+     (try
+       (loop [update-count 1]
+         (when @(d*/patch-elements! sse (live-status-fragment update-count))
+           (Thread/sleep 1000)
+           (recur (inc update-count))))
+       (catch InterruptedException _)
+       (catch Exception e
+         (println (str "Datastar live status failed: " e)))
+       (finally
+         (d*/close-sse! sse))))))
+
+(defn live-status-response [request]
+  (let [worker (atom nil)]
+    (datastar-aleph/->sse-response
+     request
+     {datastar-aleph/on-open
+      (fn [sse]
+        (println "Datastar live status connected")
+        (reset! worker (start-live-status! sse)))
+      datastar-aleph/on-close
+      (fn [_]
+        (println "Datastar live status disconnected")
+        (when-let [thread @worker]
+          (.interrupt ^Thread thread)))})))
+
 (defn remove-client! [ch]
   (swap! sse-clients disj ch))
 
@@ -147,6 +188,7 @@
     (counter-panel @counter)
     (activity-status "Ready")
     (signal-demo)
+    (live-status-stream)
     [:div#notifications]
     [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 
@@ -189,6 +231,9 @@
     (let [signals (request-signals request)
           name (normalize-name (:name signals))]
       (greeting-response request name))
+
+    (and (= uri "/live-status") (= request-method :get))
+    (live-status-response request)
     
     :else
     {:status 404 :body "Not Found"}))
