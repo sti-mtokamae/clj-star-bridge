@@ -57,12 +57,14 @@ React の仮想 DOM 比較ではなく、サーバーが「どの部分を更新
 
 Aleph は Datastar 専用ではなく、SSE/streaming を扱うための Clojure HTTP サーバー基盤として採用しています。Datastar 固有のイベント生成は SDK に寄せ、手書き SSE は汎用通知ストリームと学習用の低レベル実装として扱います。
 
-### Phase 3: React Component Gradual Migration (計画中)
+`/events` と `/live-status` はどちらも長時間 SSE 接続ですが、駆動方式は異なります。`/events` は webhook や counter 更新などの外部イベントが起きた時だけ JSON を broadcast するイベント駆動の手書き SSE です。`/live-status` は接続ごとに Datastar SDK の SSE generator と virtual thread を持ち、1 秒ごとに DOM patch を送る周期実行型の Datastar SSE です。
 
-- [ ] Datastar SDK による長時間 SSE stream の新規評価
+### Phase 3: React Component Gradual Migration (進行中)
+
+- [x] Datastar SDK による長時間 SSE stream の新規評価
   - 既存の `/events` は手書き JSON SSE の参考実装として維持する
-  - Datastar SDK を使う別エンドポイントで、長時間接続の DOM patch / signal patch を検証する
-  - 機能案: `/events` に類似した通知ビュー、ライブステータス、またはサーバー時刻/進捗表示
+  - 別エンドポイント `/live-status` で、サーバー時刻と更新回数を DOM patch として継続送信する
+  - 長時間処理は virtual thread で実行し、クライアント切断時に停止する
 - [ ] 既存 React SPA の段階的置き換え
 - [ ] 状態管理の Clojure 移行
 
