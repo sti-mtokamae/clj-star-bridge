@@ -72,3 +72,11 @@ Plain notification stream:
 SDK は「すべての SSE を置き換える道具」としてではなく、「Datastar プロトコル部分を任せる道具」として採用するのがよい。
 
 今後 Datastar の利用範囲が増える場合は、手書きで SSE frame を組み立てるよりも、SDK の API 名に寄せた実装の方が意図を読み取りやすく、プロトコル変更にも追従しやすい。
+
+## 運用環境で評価すること
+
+- Azure App Service の実経路で長時間 SSE 接続を維持できること
+- 接続直後の初期 event と、無通信時の heartbeat が idle timeout を回避すること
+- App Service、前段 proxy、deploy、scale-out などによる切断後にクライアントが自動再接続できること
+- 再接続時に画面や signal の状態を復元できること
+- 業務 event と接続維持用 heartbeat を分け、必要以上に DOM patch を送らないこと

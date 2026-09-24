@@ -1,18 +1,20 @@
 # clj-star-bridge
 
-React SPA から **Datastar + Clojure** へのアーキテクチャ移行を段階的に実現するための実験プロジェクト。
+モノリシックな React SPA + 単一デプロイ境界の Spring Boot REST backend から、**Clojure/Hiccup がページを構成し、Datastar と React コンポーネントが共存する構成**への段階的な移行を検証するプロジェクト。
 
-既存の重い JavaScript フレームワークから脱却し、サーバー主導のシンプルで軽量なリアルタイム Web アプリケーションへの「架け橋」となることを目指しています。
+React Router と feature ごとの Zustand store 群がブラウザ内で担っている画面・データ区画の制御を、サーバー側の URL・ページ・サービス境界へ移すことを目指します。React は廃止せず、複雑なクライアント UI を担当するページ内コンポーネントとして残します。
 
 ## 📌 プロジェクトの目的
 
-| 項目 | React SPA | Datastar + Clojure |
-|------|-----------|------------------|
-| フロントエンド | 重い（React, Vue など） | 軽量（11KB） |
-| 状態管理 | クライアント側（useState） | サーバー側（Atom） |
-| ビルド | 必須（npm, webpack） | 不要 |
-| 更新方式 | 仮想 DOM の差分検出 | SSE による部分更新 |
-| 開発体験 | npm ビルド待機 | REPL 駆動開発 |
+| 関心事 | 現在のモノリシック SPA | 目標構成 |
+|------|--------------------------|----------|
+| ページ制御 | React Router | サーバーの URL routing と Hiccup |
+| 画面・データ区画 | React Router と Zustand store 群 | URL、page context、backend service |
+| ページ内 UI | React がページ全体を管理 | Datastar と React component を適材適所で利用 |
+| 業務データ | 内部に業務別構造を持つ単一デプロイの Spring Boot backend | 明示した service 境界が所有し、必要な場合だけ独立デプロイ |
+| JavaScript build | SPA 全体を build | React component に必要な範囲だけ build |
+
+詳細な目標構成と責任分担は [`docs/TARGET_ARCHITECTURE.md`](docs/TARGET_ARCHITECTURE.md) を参照してください。
 
 ## ✅ 実装進捗
 
@@ -59,51 +61,58 @@ Aleph は Datastar 専用ではなく、SSE/streaming を扱うための Clojure
 
 `/events` と `/live-status` はどちらも長時間 SSE 接続ですが、駆動方式は異なります。`/events` は webhook や counter 更新などの外部イベントが起きた時だけ JSON を broadcast するイベント駆動の手書き SSE です。`/live-status` は接続ごとに Datastar SDK の SSE generator と virtual thread を持ち、1 秒ごとに DOM patch を送る周期実行型の Datastar SSE です。
 
-### Phase 3: React Component Gradual Migration (進行中)
+### Phase 3: Hiccup Shell + React Component Integration (進行中)
 
 - [x] Datastar SDK による長時間 SSE stream の新規評価
   - 既存の `/events` は手書き JSON SSE の参考実装として維持する
   - 別エンドポイント `/live-status` で、サーバー時刻と更新回数を DOM patch として継続送信する
   - 長時間処理は virtual thread で実行し、クライアント切断時に停止する
-- [ ] 既存 React SPA の段階的置き換え
-- [ ] 状態管理の Clojure 移行
+- [ ] Azure App Service の実経路で長時間 SSE 接続を検証
+  - 接続直後に初期 event を送信し、無通信時は heartbeat で idle timeout を避ける
+  - 切断後の自動再接続と状態復元を確認する
+  - 業務 event と接続維持用 heartbeat の送信間隔を分離する
+- [x] Hiccup、Datastar、React、backend service の責任分担を定義
+- [ ] Hiccup ページに `clj-react-hack` の React component を mount
+- [ ] Datastar と React の DOM 所有範囲を分離
+- [ ] 通常のページ遷移でページ固有 state が破棄・再構築されることを確認
 
-### Phase 4: Full Clojure SSR (計画中) - 最終形イメージ
+### Phase 4: Application Boundary Migration (計画中)
 
-**焦点：アプリケーション層 - 状態管理とHTMLレンダリング**
+**焦点：React SPA 内の仮想的な画面・データ区画を、サーバーのページ・サービス境界へ移す**
 
 ```mermaid
 graph TB
-    Browser["Browser<br/>Datastar Framework"]
-    SSE["SSE Stream<br/>HTML fragments"]
-    
-    subgraph Server["Clojure Server<br/>(Aleph + Hiccup)"]
-        Handler["Handler<br/>GET /events<br/>POST /increment"]
-        State["State<br/>atom {:counter N}"]
-        Hiccup["HTML Generation<br/>Hiccup DSL"]
-        
-        Handler -->|read/write| State
-        State -->|generate| Hiccup
-        Hiccup -->|create HTML| Handler
+    Browser["Browser"]
+
+    subgraph Page["Rendered page"]
+        Datastar["Datastar regions"]
+        React["React components"]
     end
-    
-    Browser -->|connect| SSE
-    SSE -->|stream| Server
-    Handler -->|provide HTML| SSE
-    SSE -->|render| Browser
-    
-style Browser fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
-style SSE fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
-style Handler fill:#673AB7,stroke:#333,stroke-width:2px,color:#fff
-style State fill:#FF5722,stroke:#333,stroke-width:2px,color:#fff
-style Hiccup fill:#9C27B0,stroke:#333,stroke-width:2px,color:#fff
+
+    subgraph Shell["Clojure page shell"]
+        Routes["URL routing"]
+        Hiccup["Hiccup composition"]
+        Clients["Service clients"]
+    end
+
+    Services["Backend services"]
+
+    Browser -->|GET page| Routes
+    Routes --> Hiccup
+    Hiccup -->|HTML response| Page
+    Page --> Browser
+    Datastar -->|action / SSE| Routes
+    React -->|request| Routes
+    Routes --> Clients
+    Clients --> Services
 ```
 
 **最終目標:**
-- ✅ 完全サーバーサイドレンダリング
-- ✅ React 完全削除
-- ✅ ビルドプロセス不要
-- ✅ REPL 駆動開発でリアルタイム更新
+- サーバーが URL、ページ構成、認証境界、service 連携を制御する
+- Datastar はサーバー主導 UI、React は複雑なクライアント UI を担当する
+- React component は割り当てられた DOM の内側だけを管理する
+- 業務データと業務ロジックは backend service が所有する
+- service 分割は実際の業務境界と独立運用の必要性が確認できた箇所に限定する
 
 ## 🚀 クイックスタート
 

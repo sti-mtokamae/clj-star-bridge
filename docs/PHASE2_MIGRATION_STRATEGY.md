@@ -1,5 +1,9 @@
 # Phase 2: Datastar 統合 - 移行戦略書
 
+> [!NOTE]
+> この文書は、既存の React SPA + Spring Boot 運用システムへ Datastar + Clojure を段階導入するための実施案です。限定機能からの導入、既存認証との連携、SSE/Hiccup、feature flag による段階的ロールアウトは、引き続き移行計画として扱います。
+> [`TARGET_ARCHITECTURE.md`](TARGET_ARCHITECTURE.md) では最終的な責任分担を明確化し、Clojure/Hiccup がページを構成して Datastar と React component を別々の DOM 領域へ配置します。そのため、React SPA 内へ Datastar を組み込む手順は移行期間の方式として位置づけます。Clojure からの既存 DB 直接参照と backend service 経由のどちらを採るか、認証方式、対象 endpoint、見積は、実装着手前に現在のシステム構成と照合して決定します。
+
 ## 📋 目的
 既存の **React SPA + Spring Boot** 運用システムに対して、段階的に **Datastar + Clojure** を統合する。
 本番運用を継続しながら、限定的な機能から置き換えていく「共存・移行」アプローチ。
