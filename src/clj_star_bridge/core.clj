@@ -21,6 +21,19 @@
 (def datastar-script-url
   "https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js")
 
+(def react-asset-base-url
+  (or (System/getenv "CLJ_REACT_ASSET_BASE_URL")
+      "http://localhost:3000"))
+
+(defn react-asset-url [path]
+  (str (str/replace react-asset-base-url #"/$" "") path))
+
+(defn react-assets []
+  [[:link {:rel "stylesheet"
+           :href (react-asset-url "/output.css")}]
+   [:script {:defer true
+             :src (react-asset-url "/js/main.js")}]])
+
 (defn sse-data-lines [data]
   (let [body (if (string? data)
                data
@@ -77,6 +90,12 @@
   [:section#live-status-stream {:data-init "@get('/live-status')"}
    [:h2 "Live Status"]
    (live-status 0 "Connecting...")])
+
+(defn react-demo []
+  [:section#react-demo
+   [:h2 "React Component"]
+   [:div#app {:data-ignore-morph true}
+    [:p "Loading React component..."]]])
 
 (defn counter-panel-fragment [n]
   (str (h/html (counter-panel n))))
@@ -178,17 +197,20 @@
 ;; HTML ページ
 (defn layout []
   (page/html5
-   [:head
-    [:meta {:charset "UTF-8"}]
-    [:title "clj-star-bridge"]
-    [:script {:type "module"
-              :src datastar-script-url}]]
+   (into
+    [:head
+     [:meta {:charset "UTF-8"}]
+     [:title "clj-star-bridge"]
+     [:script {:type "module"
+               :src datastar-script-url}]]
+    (react-assets))
    [:body
     [:h1 "SSE Notifications"]
     (counter-panel @counter)
     (activity-status "Ready")
     (signal-demo)
     (live-status-stream)
+    (react-demo)
     [:div#notifications]
     [:script "const es = new EventSource('/events');\n    es.onopen = () => {\n      console.log('✅ Connected');\n      document.getElementById('notifications').innerHTML = '<p style=\"color:green\">✅ Connected</p>';\n    };\n    es.onmessage = (e) => {\n      const event = JSON.parse(e.data);\n      if (event.count !== undefined) {\n        document.getElementById('count').textContent = event.count;\n      }\n      if (event.message) {\n        document.getElementById('notifications').innerHTML += '<p style=\"color:blue\">' + event.message + '</p>';\n      }\n    };\n    es.onerror = (e) => {\n      console.error('❌ Error:', e.readyState);\n    };"]]))
 

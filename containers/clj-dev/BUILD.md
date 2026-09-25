@@ -1,6 +1,7 @@
 # clj-star-bridge clj-dev image
 
-This image provides a WSL Container based development shell for `clj-star-bridge`.
+This image provides a WSL Container based development shell for
+`clj-star-bridge` and its Shadow-CLJS React component project.
 
 ## Build
 
@@ -17,16 +18,40 @@ Check the image:
 wslc image list
 ```
 
+## Windows Checkouts
+
+Keep both repositories on the Windows filesystem. The examples below expect:
+
+```text
+C:\dev\clj-star-bridge
+C:\dev\clj-react-hack
+```
+
+Clone the React project from PowerShell if it is not present yet:
+
+```powershell
+cd C:\dev
+git clone https://github.com/sti-mtokamae/clj-react-hack.git
+```
+
+Do not use the checkout under Ubuntu WSL for this workflow. WSLc mounts the
+Windows checkouts into one development container.
+
 ## Interactive Shell
 
 ```powershell
 wslc run --name clj-star-bridge-dev `
   -v C:\dev\clj-star-bridge:/workspace `
+  -v C:\dev\clj-react-hack:/workspace-react `
   -p 8080:8080 `
+  -p 3000:3000 `
+  -p 9630:9630 `
   -it clj-star-bridge-dev:latest bash
 ```
 
-This mounts the Windows checkout at `/workspace`. Edits made in Windows, VS Code, or Codex are visible inside the container immediately.
+This mounts the backend at `/workspace` and the React project at
+`/workspace-react`. Edits made in Windows, VS Code, or Codex are visible inside
+the container immediately.
 
 Inside the container shell:
 
@@ -68,6 +93,32 @@ nix develop /opt/clj-star-bridge-dev --command bash -i
 ```
 
 Use the second dev shell for `clj`, `curl`, file inspection, or other experiments while the server stays up. Stop the server with `Ctrl+C` in the server terminal.
+
+## Run Shadow-CLJS
+
+Use the second container shell for the React development asset server:
+
+```bash
+cd /workspace-react
+npm ci
+npm run build:css
+npx shadow-cljs watch app \
+  --config-merge /workspace/containers/clj-dev/shadow-cljs-wslc.edn
+```
+
+The override is kept in `clj-star-bridge`, so the `clj-react-hack`
+configuration does not need a container-specific edit. It makes the generated
+development module URLs absolute, exposes the asset server outside the
+container, and directs hot reload to the published Shadow-CLJS server.
+
+After both processes are running, open:
+
+```text
+http://localhost:8080/
+```
+
+The page itself comes from Clojure/Hiccup on port 8080. The React CSS and
+JavaScript come from Shadow-CLJS on port 3000, and hot reload uses port 9630.
 
 ## REPL Workflow
 
@@ -170,8 +221,25 @@ Additional verification on 2026-09-23:
 - Closing the curl client invokes the adapter's `on-close` callback and stops the virtual-thread worker.
 - The existing Datastar `/increment` response still sends both `#counter-panel` and `#activity-status` patches.
 
+Additional verification on 2026-09-25:
+
+- The image runs with the Windows checkouts mounted at `/workspace` and
+  `/workspace-react` in one WSLc container.
+- Aleph serves the Hiccup page, Datastar actions, and SSE streams on port 8080.
+- Shadow-CLJS 3.1.8 serves the React development bundle on port 3000 and its
+  hot-reload endpoint on port 9630.
+- Windows host requests return HTTP 200 for the Hiccup page, React JavaScript,
+  generated CSS, and the Shadow-CLJS endpoint.
+- The React island mounts inside the Hiccup page. Its local counter and the
+  Datastar server counter update independently while the live status stream
+  continues updating.
+
 ## Notes
 
 - The repository is mounted at `/workspace`.
+- The React repository is mounted at `/workspace-react`.
 - Java, Clojure CLI, Node, and npm are provided by the Nix dev shell.
-- Datastar is loaded from a CDN, so the current app does not require a JavaScript build. Node/npm remain available for future experiments.
+- Shadow-CLJS is resolved from `clj-react-hack`'s lockfile with `npm ci`; it is
+  not installed globally in the image.
+- Datastar remains loaded from its CDN. Only the React component requires the
+  local JavaScript build.

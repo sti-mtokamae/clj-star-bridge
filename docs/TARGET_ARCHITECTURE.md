@@ -31,6 +31,11 @@ Target:
 7. 業務データと業務ルールは backend service が所有する。
 8. 分散化は目的にせず、業務境界と独立運用の価値がある単位に限定する。
 
+これらは目標状態の原則である。移行初期には、既存 React SPA を 1 つの React
+root として Hiccup shell に収容し、React Router と既存 global store を一時的に
+維持してよい。最初から SPA を分解することは前提にせず、shell 側で認証、通知、
+asset 配信などの境界を確認してから、ページ単位で責任を移す。
+
 ## 責任分担
 
 ### Clojure/Hiccup shell
@@ -83,6 +88,38 @@ React component はページ routing やアプリケーション全体の global
 ページをまたぐ巨大な client-side global store は作らない。次のページで必要な情報は URL、認証 context、または backend service から再構築する。
 
 ## React の組み込み方
+
+### 移行の入口: 既存 SPA を丸ごと収容
+
+最初の段階では、既存 React SPA 全体を 1 つの mount point に配置できる。
+
+```text
+Clojure/Hiccup shell
+  Datastar-owned notification region
+  React root
+    existing React SPA
+```
+
+これは React の「既存ページの一部へ React root を追加する」標準的な統合方式と
+同じである。違いは、Hiccup shell を将来のページ composition 境界として置き、
+既存 SPA を段階移行の対象として内側に収容する点にある。
+
+この段階では React SPA 内の router、store、API client をそのまま利用できる。
+Datastar は React root の外側にある通知 banner、接続状態、処理進捗などを担当し、
+React の DOM を直接変更しない。
+
+```text
+tradehub-web-backend
+  -> event / webhook
+  -> clj-star-bridge
+  -> long-lived Datastar SSE
+  -> notification region outside the React root
+```
+
+既存 SPA の収容は最終構成ではなく移行入口である。動作を保ったまま、必要性が
+確認できたページから server URL routing と Hiccup composition へ責任を移す。
+
+### ページ固有 component への分解
 
 Hiccup が React component 用の mount point を出力する。
 
@@ -154,9 +191,10 @@ Datastar は React mount point の内側を patch しない。React mount point 
 
 実在する要件で必要性が確認できた場合にだけ再評価する。
 
-## 最初の検証
+## 最初の検証（確認済み）
 
-`clj-react-hack` の React component を 1 つ、`clj-star-bridge` の Hiccup page に載せる。
+`clj-react-hack` の demo application 全体を 1 つの React root として、
+`clj-star-bridge` の Hiccup page に載せた。
 
 検証項目:
 
@@ -166,4 +204,13 @@ Datastar は React mount point の内側を patch しない。React mount point 
 4. 通常のページ再読み込みで component が再構築される。
 5. React asset が取得できない場合でも、ページ全体の構造が壊れない。
 
-この検証では backend service の分割や実業務データとの接続は行わない。まずページ composition と DOM 所有境界だけを確認する。
+この検証では backend service の分割や実業務データとの接続は行っていない。
+ページ composition と DOM 所有境界、別 origin の開発 asset 配信を確認した。
+
+## 次の検証
+
+1. `tradehub-web-frontend` を既存 SPA のまま React root に mount する。
+2. 既存 routing、store、Spring Boot API 接続を壊さず動かす。
+3. `tradehub-web-backend` から bridge へテスト通知を送る。
+4. React root 外の Datastar 通知領域へ一斉通知を push する。
+5. 認証済み利用者や組織を基準に通知対象を制御するための境界を整理する。

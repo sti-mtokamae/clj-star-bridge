@@ -41,5 +41,5 @@ RUN mkdir -p /root/.local/bin \
     && chmod +x /root/.local/bin/start-dev-shell.sh \
     && echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.bashrc
 
-EXPOSE 8080
+EXPOSE 8080 3000 9630
 ENTRYPOINT ["/root/.local/bin/start-dev-shell.sh"]

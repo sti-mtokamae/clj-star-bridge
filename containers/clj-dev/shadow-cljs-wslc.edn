@@ -1,0 +1,3 @@
+{:asset-path "http://localhost:3000/js"
+ :devtools {:http-host "0.0.0.0"
+            :devtools-url "http://localhost:9630"}}
