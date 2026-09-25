@@ -63,6 +63,12 @@ Aleph は Datastar 専用ではなく、SSE/streaming を扱うための Clojure
 
 ### Phase 3: Hiccup Shell + React Component Integration (進行中)
 
+この段階では、最終的なページ・service 境界への分解に先立ち、既存 React
+application を 1 つの React root として Hiccup shell に収容できることを確認する。
+これは React 公式の既存ページ統合方式と同じ mount 技術を、移行の入口として
+利用するもの。今回の PoC は構成上の接続確認であり、application boundary の
+移行完了を意味しない。
+
 - [x] Datastar SDK による長時間 SSE stream の新規評価
   - 既存の `/events` は手書き JSON SSE の参考実装として維持する
   - 別エンドポイント `/live-status` で、サーバー時刻と更新回数を DOM patch として継続送信する
@@ -72,9 +78,12 @@ Aleph は Datastar 専用ではなく、SSE/streaming を扱うための Clojure
   - 切断後の自動再接続と状態復元を確認する
   - 業務 event と接続維持用 heartbeat の送信間隔を分離する
 - [x] Hiccup、Datastar、React、backend service の責任分担を定義
-- [ ] Hiccup ページに `clj-react-hack` の React component を mount
-- [ ] Datastar と React の DOM 所有範囲を分離
-- [ ] 通常のページ遷移でページ固有 state が破棄・再構築されることを確認
+- [x] Hiccup ページに `clj-react-hack` の demo application を 1 つの React root として mount
+- [x] Datastar と React の DOM 所有範囲を分離
+- [x] full-page reload でページ固有 state が破棄・再構築されることを確認
+- [ ] `tradehub-web-frontend` を既存 SPA のまま Hiccup shell に収容して動作確認
+- [ ] `tradehub-web-backend` の event を bridge で受け、React root 外の Datastar 通知領域へ push
+- [ ] 実システムの認証、routing、asset 配信境界を確認
 
 ### Phase 4: Application Boundary Migration (計画中)
 
@@ -123,7 +132,13 @@ graph TB
 ```powershell
 cd C:\dev\clj-star-bridge
 wslc build -t clj-star-bridge-dev:latest -f containers/clj-dev/Dockerfile .
-wslc run -v C:\dev\clj-star-bridge:/workspace -p 8080:8080 -it clj-star-bridge-dev:latest bash
+wslc run --name clj-star-bridge-dev `
+  -v C:\dev\clj-star-bridge:/workspace `
+  -v C:\dev\clj-react-hack:/workspace-react `
+  -p 8080:8080 `
+  -p 3000:3000 `
+  -p 9630:9630 `
+  -it clj-star-bridge-dev:latest bash
 ```
 
 コンテナ内で：
@@ -135,6 +150,37 @@ clj -M -m clj-star-bridge.core
 ブラウザで [http://localhost:8080](http://localhost:8080) を開くと、SSE 通知システムが表示されます。
 
 Windows 上のチェックアウトはコンテナ内の `/workspace` にマウントされます。bash や Clojure REPL でインタラクティブに試す手順は [`containers/clj-dev/BUILD.md`](containers/clj-dev/BUILD.md) を参照してください。
+
+### React component 統合 PoC
+
+`clj-react-hack` も Windows の `C:\dev\clj-react-hack` にチェックアウトし、
+同じ WSLc コンテナへ `/workspace-react` としてマウントします。別の
+PowerShell ターミナルから同じコンテナへ入ります。
+
+```powershell
+wslc exec -it clj-star-bridge-dev bash
+```
+
+2つ目のコンテナシェルで Nix 開発環境へ入り、Shadow-CLJS development
+server を起動します。
+
+```bash
+nix develop /opt/clj-star-bridge-dev --command bash -i
+cd /workspace-react
+npm ci
+npm run build:css
+npx shadow-cljs watch app \
+  --config-merge /workspace/containers/clj-dev/shadow-cljs-wslc.edn
+```
+
+`clj-star-bridge` は既定で `http://localhost:3000/output.css` と `http://localhost:3000/js/main.js` を読み込み、Hiccup が生成した `#app` に React component を mount します。Shadow-CLJS は React 側の lockfile に固定された版を使い、コンテナイメージへグローバルインストールしません。詳しい起動・再接続手順は [`containers/clj-dev/BUILD.md`](containers/clj-dev/BUILD.md) を参照してください。
+
+配信元を変える場合は、`CLJ_REACT_ASSET_BASE_URL` を指定してから Clojure server を起動します。
+
+```bash
+CLJ_REACT_ASSET_BASE_URL=https://example.invalid/assets/clj-react-hack \
+  clj -M -m clj-star-bridge.core
+```
 
 ### Windows で直接起動
 

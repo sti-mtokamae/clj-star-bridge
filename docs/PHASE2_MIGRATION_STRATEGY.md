@@ -2,11 +2,34 @@
 
 > [!NOTE]
 > この文書は、既存の React SPA + Spring Boot 運用システムへ Datastar + Clojure を段階導入するための実施案です。限定機能からの導入、既存認証との連携、SSE/Hiccup、feature flag による段階的ロールアウトは、引き続き移行計画として扱います。
-> [`TARGET_ARCHITECTURE.md`](TARGET_ARCHITECTURE.md) では最終的な責任分担を明確化し、Clojure/Hiccup がページを構成して Datastar と React component を別々の DOM 領域へ配置します。そのため、React SPA 内へ Datastar を組み込む手順は移行期間の方式として位置づけます。Clojure からの既存 DB 直接参照と backend service 経由のどちらを採るか、認証方式、対象 endpoint、見積は、実装着手前に現在のシステム構成と照合して決定します。
+> [`TARGET_ARCHITECTURE.md`](TARGET_ARCHITECTURE.md) では最終的な責任分担を明確化し、Clojure/Hiccup がページを構成して Datastar と React component を別々の DOM 領域へ配置します。React SPA 内へ Datastar を組み込む方式と、Hiccup shell が既存 React SPA を 1 つの React root として収容する方式は、どちらも移行期間の選択肢として扱います。業務データは原則として既存 backend service 経由で取得し、Clojure からの DB 直接参照は明確な理由がある個別実験に限定します。認証方式、対象 endpoint、見積は、実装着手前に現在のシステム構成と照合して決定します。
 
 ## 📋 目的
 既存の **React SPA + Spring Boot** 運用システムに対して、段階的に **Datastar + Clojure** を統合する。
 本番運用を継続しながら、限定的な機能から置き換えていく「共存・移行」アプローチ。
+
+## 今回確認した移行入口
+
+`clj-react-hack` の demo application 全体を、`clj-star-bridge` が生成する Hiccup
+page の `#app` に mount できることを確認した。React root の外側では Datastar の
+counter、signals、長時間 SSE stream が同時に動作し、それぞれの DOM 所有範囲を
+分離できた。
+
+この結果から、最初に `tradehub-web-frontend` を細かく分解せず、既存 SPA のまま
+Hiccup shell に収容する移行方法を検証できる。例えば、一斉通知は React の store
+へ組み込まず、次の経路で shell 側の Datastar 領域へ表示できる。
+
+```text
+tradehub-web-backend
+  -> event / webhook
+  -> clj-star-bridge
+  -> Datastar SSE
+  -> React root 外の通知領域
+```
+
+これは最終的な application boundary 移行そのものではない。既存 SPA を動かした
+ままサーバー側の制御層を導入する第一段階であり、その後に必要なページから URL、
+page context、service 境界を Clojure/Hiccup 側へ移す。
 
 ---
 
